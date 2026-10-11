@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Detected USB Details</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;padding:24px;background:#f3f6fb;color:#172033;font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+    main{max-width:900px;margin:0 auto;background:#fff;border:1px solid #dfe5ee;border-radius:18px;padding:clamp(22px,4vw,36px);box-shadow:0 18px 55px #17203312}
+    h1{margin:0 0 6px;font-size:clamp(25px,5vw,32px);letter-spacing:-.04em}p{color:#637087;margin-top:0}
+    dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:24px 0}
+    .item{border:1px solid #dfe5ee;border-radius:12px;padding:14px}dt{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#637087;font-weight:700}dd{margin:5px 0 0;overflow-wrap:anywhere;font-weight:600}
+    .files{padding-left:20px}.files li{margin:6px 0;overflow-wrap:anywhere}.empty{color:#637087;background:#f8faff;padding:14px;border-radius:10px}
+    a{display:inline-block;margin-top:18px;color:#2457d6;font-weight:650;text-decoration:none}a:hover{text-decoration:underline}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Detected USB details</h1>
+    <p>Information read from the currently detected removable drive.</p>
+    <dl>
+      <div class="item"><dt>Drive</dt><dd>{{ details.drive_letter }}</dd></div>
+      <div class="item"><dt>Volume name</dt><dd>{{ details.volume_name or "Unnamed volume" }}</dd></div>
+      <div class="item"><dt>Volume serial</dt><dd>{{ details.serial_number }}</dd></div>
+      <div class="item"><dt>File system</dt><dd>{{ details.file_system }}</dd></div>
+      <div class="item"><dt>Total capacity</dt><dd>{{ details.total_size }}</dd></div>
+      <div class="item"><dt>Free space</dt><dd>{{ details.free_space }}</dd></div>
+    </dl>
+    <h2>Top-level contents</h2>
+    {% if details.items %}
+      <ul class="files">{% for item in details.items %}<li>{{ item }}</li>{% endfor %}</ul>
+    {% else %}
+      <div class="empty">No files or folders were found at the top level.</div>
+    {% endif %}
+    <a href="/">← Back to status</a>
+  </main>
+</body>
+</html>
