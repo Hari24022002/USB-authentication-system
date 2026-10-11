@@ -27,10 +27,22 @@ logger = logging.getLogger(__name__)
 # Set USB_AUTH_PASSWORD in the environment before starting the app.
 # There is intentionally no insecure built-in default password.
 PASSWORD = os.environ.get("USB_AUTH_PASSWORD")
-STATUS_MESSAGE = "Waiting for USB insertion"  # Global status message
-DRIVE_LETTER = None  # Detected USB drive letter
-PROCESSED_DRIVES = set()  # Track processed drives
-BROWSER_OPENED = False  # Track if browser has been opened for the current USB
+ALLOWED_USB_SERIALS = {
+    value.strip().lower().removeprefix("0x").replace("-", "").replace(" ", "")
+    for value in os.environ.get("USB_ALLOWED_SERIALS", "").split(",")
+    if value.strip()
+}
+STATUS_MESSAGE = "Waiting for USB insertion"
+DRIVE_LETTER = None
+DRIVE_SERIAL = None
+DEVICE_AUTHORIZED = False
+PROCESSED_DRIVES = set()
+BROWSER_OPENED = False
+
+
+def normalize_serial(value):
+    return str(value).strip().lower().removeprefix("0x").replace("-", "").replace(" ", "")
+
 
 def is_removable_drive(drive_letter):
     """Check if the drive is removable."""
@@ -71,23 +83,49 @@ def poll_usb_drives():
         return None
 
 def process_usb_drive(drive_letter):
-    """Process a detected USB drive and open the application."""
-    global STATUS_MESSAGE, DRIVE_LETTER, BROWSER_OPENED
-    if is_removable_drive(drive_letter):
-        DRIVE_LETTER = drive_letter
-        STATUS_MESSAGE = f"USB detected: {drive_letter}. Opening application."
-        logger.info(STATUS_MESSAGE)
-        if not BROWSER_OPENED:
-            try:
-                webbrowser.open('http://localhost:5005/')
-                BROWSER_OPENED = True
-                logger.info("Web application opened in browser")
-            except Exception as e:
-                STATUS_MESSAGE = f"Error opening browser: {e}"
-                logger.error(STATUS_MESSAGE)
-    else:
+    """Detect a removable drive and allow the UI only for configured serials."""
+    global STATUS_MESSAGE, DRIVE_LETTER, DRIVE_SERIAL, DEVICE_AUTHORIZED, BROWSER_OPENED
+    if not is_removable_drive(drive_letter):
         STATUS_MESSAGE = "Detected drive is not removable."
+        DEVICE_AUTHORIZED = False
         logger.warning(STATUS_MESSAGE)
+        return
+
+    DRIVE_LETTER = drive_letter
+    try:
+        _, serial_num, _, _, _ = win32api.GetVolumeInformation(drive_letter)
+        DRIVE_SERIAL = hex(serial_num)
+    except Exception as exc:
+        DRIVE_SERIAL = None
+        DEVICE_AUTHORIZED = False
+        STATUS_MESSAGE = f"USB detected at {drive_letter}, but its volume serial could not be read."
+        logger.warning("%s Details: %s", STATUS_MESSAGE, exc)
+        return
+
+    serial_key = normalize_serial(DRIVE_SERIAL)
+    DEVICE_AUTHORIZED = bool(ALLOWED_USB_SERIALS) and serial_key in ALLOWED_USB_SERIALS
+    if not ALLOWED_USB_SERIALS:
+        STATUS_MESSAGE = (
+            f"USB detected at {drive_letter}; volume serial is {DRIVE_SERIAL}. "
+            "No authorized serials are configured. Set USB_ALLOWED_SERIALS and restart."
+        )
+        logger.warning(STATUS_MESSAGE)
+        return
+    if not DEVICE_AUTHORIZED:
+        STATUS_MESSAGE = f"Unauthorized USB device detected at {drive_letter} (serial {DRIVE_SERIAL})."
+        logger.warning(STATUS_MESSAGE)
+        return
+
+    STATUS_MESSAGE = f"Authorized USB device detected at {drive_letter} (serial {DRIVE_SERIAL})."
+    logger.info(STATUS_MESSAGE)
+    if not BROWSER_OPENED:
+        try:
+            webbrowser.open('http://127.0.0.1:5005/')
+            BROWSER_OPENED = True
+            logger.info("Web application opened in browser")
+        except Exception as exc:
+            STATUS_MESSAGE = f"Error opening browser: {exc}"
+            logger.error(STATUS_MESSAGE)
 
 def monitor_usb():
     """Monitor USB device insertion using Windows WMI with fallback polling."""
@@ -152,7 +190,7 @@ def index():
             return redirect(url_for('details'))
         else:
             error = "Incorrect password"
-    if DRIVE_LETTER:
+    if DRIVE_LETTER and DEVICE_AUTHORIZED:
         return render_template('index.html', status=STATUS_MESSAGE, show_form=True, error=error)
     else:
         return render_template('index.html', status=STATUS_MESSAGE, show_form=False, error=None)
@@ -161,6 +199,9 @@ def index():
 def details():
     """Display USB drive details and data if authenticated."""
     if not session.get('authenticated'):
+        return redirect(url_for('index'))
+    if not DEVICE_AUTHORIZED:
+        session.clear()
         return redirect(url_for('index'))
     if not DRIVE_LETTER:
         return "No USB drive detected.", 400
