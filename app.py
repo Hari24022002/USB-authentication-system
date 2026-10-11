@@ -11,17 +11,22 @@ import webbrowser
 import secrets
 
 app = Flask(__name__)
-app.secret_key = secrets.token_hex(16)
+app.secret_key = os.environ.get("USB_APP_SECRET") or secrets.token_hex(32)
 
-# Configure logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s', filename='C:\\DSkey\\app.log')
+# Configure logs in a project-local folder instead of assuming C:\\DSkey exists.
+LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
+os.makedirs(LOG_DIR, exist_ok=True)
+LOG_FILE = os.path.join(LOG_DIR, "app.log")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[logging.FileHandler(LOG_FILE, encoding="utf-8"), logging.StreamHandler()],
+)
 logger = logging.getLogger(__name__)
-console_handler = logging.StreamHandler()
-console_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-logger.addHandler(console_handler)
 
-# Configuration
-PASSWORD = "Admin@1234"  # Hardcoded password
+# Set USB_AUTH_PASSWORD in the environment before starting the app.
+# There is intentionally no insecure built-in default password.
+PASSWORD = os.environ.get("USB_AUTH_PASSWORD")
 STATUS_MESSAGE = "Waiting for USB insertion"  # Global status message
 DRIVE_LETTER = None  # Detected USB drive letter
 PROCESSED_DRIVES = set()  # Track processed drives
@@ -142,7 +147,7 @@ def index():
     error = None
     if request.method == 'POST':
         entered_pass = request.form.get('password')
-        if entered_pass == PASSWORD:
+        if PASSWORD and entered_pass == PASSWORD:
             session['authenticated'] = True
             return redirect(url_for('details'))
         else:
@@ -198,5 +203,5 @@ if __name__ == '__main__':
     usb_thread.start()
     
     # Start Flask server
-    app.run(host='0.0.0.0', port=5005, debug=True)
+    app.run(host='127.0.0.1', port=5005, debug=False)
     
