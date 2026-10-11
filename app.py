@@ -110,10 +110,16 @@ def process_usb_drive(drive_letter):
             "No authorized serials are configured. Set USB_ALLOWED_SERIALS and restart."
         )
         logger.warning(STATUS_MESSAGE)
+        if not BROWSER_OPENED:
+            webbrowser.open('http://127.0.0.1:5005/')
+            BROWSER_OPENED = True
         return
     if not DEVICE_AUTHORIZED:
         STATUS_MESSAGE = f"Unauthorized USB device detected at {drive_letter} (serial {DRIVE_SERIAL})."
         logger.warning(STATUS_MESSAGE)
+        if not BROWSER_OPENED:
+            webbrowser.open('http://127.0.0.1:5005/')
+            BROWSER_OPENED = True
         return
 
     STATUS_MESSAGE = f"Authorized USB device detected at {drive_letter} (serial {DRIVE_SERIAL})."
