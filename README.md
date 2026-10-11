@@ -1,56 +1,67 @@
 # USB Authentication System — Windows Prototype
 
-A Python/Flask desktop-oriented prototype that detects removable drives on Windows, displays drive information, and gates the details page behind a password check.
+A Windows-specific Python/Flask prototype that monitors removable drives, opens a local browser interface when a removable drive is detected, and displays volume details after a local password check.
 
-> **Important limitation:** the current code detects removable drives, but it does not compare a detected drive against an authorized serial-number allowlist. Do not describe it as serial-number-based authentication until that validation is implemented and tested.
+> **Current limitation:** the current workflow detects removable drives but does not yet validate the detected volume serial against an authorized-device allowlist. Until that is implemented and tested, treat this as a USB detection and password-gated inspection prototype, not a security boundary.
 
-## Features present in the current code
+## Current functionality
 
-- Removable-drive detection through Windows APIs and WMI
-- Background monitoring with a polling fallback
-- Password-gated details page using a Flask session
-- Display of volume name, volume serial, filesystem, capacity, free space, and top-level files
-- Logging of monitoring and drive-inspection events
+- Detect removable drives using Windows APIs and WMI
+- Monitor for USB insertion with polling fallback
+- Open a local interface at `http://127.0.0.1:5005`
+- Password-gated details page
+- Display volume name, volume serial, file system, capacity, free space, and top-level entries
+- Write logs to the project-local `logs/app.log`
 
-## Detection flow
+## Requirements
 
-```mermaid
-flowchart TD
-    A[Windows starts app] --> B[Monitor removable drives]
-    B --> C{Removable drive detected?}
-    C -- No --> B
-    C -- Yes --> D[Show password form]
-    D --> E{Password accepted?}
-    E -- No --> D
-    E -- Yes --> F[Display drive details]
+- Windows 10/11
+- Python 3.10 or newer
+- A removable USB drive for hardware testing
+
+## Setup (PowerShell)
+
+```powershell
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+$env:USB_APP_SECRET = [guid]::NewGuid().ToString() + [guid]::NewGuid().ToString()
+$env:USB_AUTH_PASSWORD = "choose-a-local-password"
+python app.py
 ```
 
-This represents the current prototype behavior, not a verified device-identity security boundary.
+Keep the terminal open while the application is running. The app listens on localhost only and does not enable Flask debug mode. The USB monitoring loop is designed for Windows and may require testing with the permissions and WMI configuration on your machine.
 
-## Technology
+For each new PowerShell session, set `USB_APP_SECRET` and `USB_AUTH_PASSWORD` again before launching the app. `.env.example` documents the variable names; the application does not automatically load a `.env` file.
 
-- Python
-- Flask
-- pywin32 / Windows API
-- WMI
-- pythoncom
+## Files
 
-## Platform requirements
+```text
+app.py
+templates/
+  index.html
+  details.html
+requirements.txt
+.env.example
+README.md
+```
 
-This project is Windows-specific. The repository currently contains `app.py` and this README, but the code references `templates/index.html` and `templates/details.html`, which are not tracked in the current repository tree. Those templates must be added before the UI can run. A dependency manifest and clean setup instructions are also missing.
+## Testing checklist
 
-## Security work required before a live demo
+1. Start the app with the environment variables set.
+2. Open the local page and confirm the waiting state renders.
+3. Insert a removable USB drive and confirm detection updates the status.
+4. Enter the configured password and confirm the details page loads.
+5. Confirm the volume details and top-level entries match the test drive.
+6. Test a wrong password and confirm the details page remains protected.
 
-- Remove the hardcoded password and load credentials securely.
-- Do not run Flask debug mode or expose the development server on a public network.
-- Implement and test an explicit authorized-device allowlist if device authorization is the goal.
-- Avoid exposing directory contents or sensitive drive details to unauthorized users.
-- Store logs in a configurable, writable application-data directory.
-- Add the missing templates and test the app on a clean Windows machine.
+## Security and limitations
 
-## Screenshots and demo
-
-Screenshots and a live demo are not included yet. Add genuine screenshots of the waiting state, detected-device state, authentication form, and details page after the missing templates and security changes are completed.
+- Device serial-number allowlist validation is not implemented yet.
+- The password is compared with an environment-provided value; this is a local prototype, not a multi-user identity system.
+- The details page lists top-level file names and sizes. Use a test USB drive and avoid exposing private contents.
+- Do not expose this app to the public internet. The project uses Windows-specific APIs and is not suitable for a generic cloud host without redesign.
 
 ## Author
 
